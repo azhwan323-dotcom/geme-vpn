@@ -1,0 +1,50 @@
+name: Build GameVPN Real
+on:
+  workflow_dispatch:
+jobs:
+  build:
+    runs-on: ubuntu-24.04
+    env:
+      GH_TOKEN: ${{ github.token }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          path: mine
+      - uses: actions/checkout@v4
+        with:
+          repository: 2dust/v2rayNG
+          submodules: recursive
+          path: src
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 17
+      - name: Download core library
+        run: |
+          mkdir -p src/V2rayNG/app/libs
+          gh release download -R 2dust/AndroidLibXrayLite -p "libv2ray.aar" -D src/V2rayNG/app/libs
+      - name: Rebrand
+        run: |
+          sudo apt-get update -qq && sudo apt-get install -y -qq imagemagick
+          R=src/V2rayNG/app/src/main/res
+          sed -i 's|<string name="app_name">[^<]*</string>|<string name="app_name">GameVPN</string>|' $R/values/strings.xml
+          for f in $R/values-*/strings.xml; do
+            sed -i 's|<string name="app_name">[^<]*</string>|<string name="app_name">GameVPN</string>|' "$f"
+          done
+          ICON=$(ls mine/*.png 2>/dev/null | head -1)
+          if [ -n "$ICON" ]; then
+            find $R -path '*mipmap*' -name 'ic_launcher*' -delete
+            for d in mdpi:48 hdpi:72 xhdpi:96 xxhdpi:144 xxxhdpi:192; do
+              n=${d%%:*}; s=${d##*:}
+              mkdir -p $R/mipmap-$n
+              convert "$ICON" -resize ${s}x${s} $R/mipmap-$n/ic_launcher.png
+              cp $R/mipmap-$n/ic_launcher.png $R/mipmap-$n/ic_launcher_round.png
+            done
+          fi
+      - name: Build APK
+        working-directory: src/V2rayNG
+        run: chmod +x gradlew && ./gradlew assembleDebug
+      - uses: actions/upload-artifact@v4
+        with:
+          name: GameVPN-real
+          path: src/V2rayNG/app/build/outputs/apk/**/*.apk
