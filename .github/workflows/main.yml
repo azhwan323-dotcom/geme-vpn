@@ -1,6 +1,35 @@
-
-- name: Run android setup
-  uses: android-actions/setup-android@v4
-  with:
-    packages: 'platform-tools'
-    
+name: Build GameVPN APK
+on:
+  workflow_dispatch:
+jobs:
+  build:
+    runs-on: ubuntu-24.04
+    env:
+      GH_TOKEN: ${{ github.token }}
+    steps:
+      - name: Get v2rayNG source
+        uses: actions/checkout@v4
+        with:
+          repository: 2dust/v2rayNG
+          submodules: recursive
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 17
+      - name: Download core library
+        run: |
+          mkdir -p V2rayNG/app/libs
+          gh release download -R 2dust/AndroidLibXrayLite -p "libv2ray.aar" -D V2rayNG/app/libs
+      - name: Rename app
+        run: |
+          sed -i 's|<string name="app_name">[^<]*</string>|<string name="app_name">GameVPN</string>|' V2rayNG/app/src/main/res/values/strings.xml
+          for f in V2rayNG/app/src/main/res/values-*/strings.xml; do
+            sed -i 's|<string name="app_name">[^<]*</string>|<string name="app_name">GameVPN</string>|' "$f"
+          done
+      - name: Build APK
+        working-directory: V2rayNG
+        run: chmod +x gradlew && ./gradlew assembleDebug
+      - uses: actions/upload-artifact@v4
+        with:
+          name: GameVPN-apk
+          path: V2rayNG/app/build/outputs/apk/**/*.apk
