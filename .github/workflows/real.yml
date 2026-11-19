@@ -25,7 +25,7 @@ jobs:
           gh release download -R 2dust/AndroidLibXrayLite -p "libv2ray.aar" -D src/V2rayNG/app/libs
       - name: Rebrand
         run: |
-          sudo apt-get update -qq && sudo apt-get install -y -qq imagemagick
+          command -v convert >/dev/null || sudo apt-get install -y -qq imagemagick
           R=src/V2rayNG/app/src/main/res
           sed -i 's|<string name="app_name">[^<]*</string>|<string name="app_name">GameVPN</string>|' $R/values/strings.xml
           for f in $R/values-*/strings.xml; do
@@ -42,7 +42,10 @@ jobs:
           fi
       - name: Build APK
         working-directory: src/V2rayNG
-        run: chmod +x gradlew && ./gradlew assembleDebug
+        run: |
+          chmod +x gradlew
+          OPTS="-Dorg.gradle.internal.http.connectionTimeout=120000 -Dorg.gradle.internal.http.socketTimeout=120000"
+          ./gradlew assembleDebug $OPTS || ./gradlew assembleDebug --refresh-dependencies $OPTS || ./gradlew assembleDebug --refresh-dependencies $OPTS
       - uses: actions/upload-artifact@v4
         with:
           name: GameVPN-real
