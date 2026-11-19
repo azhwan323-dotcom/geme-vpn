@@ -25,21 +25,37 @@ jobs:
           gh release download -R 2dust/AndroidLibXrayLite -p "libv2ray.aar" -D src/V2rayNG/app/libs
       - name: Rebrand
         run: |
-          command -v convert >/dev/null || sudo apt-get install -y -qq imagemagick
           R=src/V2rayNG/app/src/main/res
           sed -i 's|<string name="app_name">[^<]*</string>|<string name="app_name">GameVPN</string>|' $R/values/strings.xml
           for f in $R/values-*/strings.xml; do
             sed -i 's|<string name="app_name">[^<]*</string>|<string name="app_name">GameVPN</string>|' "$f"
           done
-          ICON=$(ls mine/*.png 2>/dev/null | head -1)
-          if [ -n "$ICON" ]; then
-            for f in $(find $R -path '*mipmap-*dpi*' -type f -name 'ic_launcher*' ! -path '*anydpi*'); do
-              case "$f" in
-                *foreground*) convert "$ICON" -resize 130x130 -background none -gravity center -extent 192x192 "$f" || true ;;
-                *) convert "$ICON" -resize 192x192 "$f" || true ;;
-              esac
-            done
-          fi
+          python3 -c "import PIL" 2>/dev/null || python3 -m pip install -q --break-system-packages pillow || true
+          python3 - << 'PY'
+          import glob, sys
+          try:
+              from PIL import Image
+          except Exception:
+              print('pillow not available, skipping icon')
+              sys.exit(0)
+          icons = sorted(glob.glob('mine/*.png'))
+          if icons:
+              src = Image.open(icons[0]).convert('RGBA')
+              R = 'src/V2rayNG/app/src/main/res'
+              for f in glob.glob(R + '/mipmap-*dpi*/ic_launcher*'):
+                  if 'anydpi' in f:
+                      continue
+                  try:
+                      if 'foreground' in f:
+                          im = src.resize((130, 130))
+                          c = Image.new('RGBA', (192, 192), (0, 0, 0, 0))
+                          c.paste(im, (31, 31), im)
+                      else:
+                          c = src.resize((192, 192))
+                      c.save(f)
+                  except Exception as e:
+                      print('skip', f, e)
+          PY
       - name: Build APK
         working-directory: src/V2rayNG
         run: |
@@ -50,9 +66,4 @@ jobs:
         run: |
           mkdir out
           A=$(find src/V2rayNG/app/build/outputs/apk -name '*arm64-v8a*.apk' | head -1)
-          if [ -n "$A" ]; then cp "$A" out/GameVPN-small.apk; else cp $(find src/V2rayNG/app/build/outputs/apk -name '*.apk' | head -1) out/GameVPN-small.apk; fi
-          ls -lh out
-      - uses: actions/upload-artifact@v4
-        with:
-          name: GameVPN-small
-          path: out/GameVPN-small.apk
+          if [ -n "$A" ]; then cp "$A" out/GameVPN-small.apk; else cp
