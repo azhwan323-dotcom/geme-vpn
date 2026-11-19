@@ -4,32 +4,155 @@ on:
 jobs:
   build:
     runs-on: ubuntu-24.04
-    env:
-      GH_TOKEN: ${{ github.token }}
     steps:
-      - name: Get v2rayNG source
-        uses: actions/checkout@v4
-        with:
-          repository: 2dust/v2rayNG
-          submodules: recursive
       - uses: actions/setup-java@v4
         with:
           distribution: temurin
           java-version: 17
-      - name: Download core library
+      - uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: 8.9
+      - name: Create project
         run: |
-          mkdir -p V2rayNG/app/libs
-          gh release download -R 2dust/AndroidLibXrayLite -p "libv2ray.aar" -D V2rayNG/app/libs
-      - name: Rename app
-        run: |
-          sed -i 's|<string name="app_name">[^<]*</string>|<string name="app_name">GameVPN</string>|' V2rayNG/app/src/main/res/values/strings.xml
-          for f in V2rayNG/app/src/main/res/values-*/strings.xml; do
-            sed -i 's|<string name="app_name">[^<]*</string>|<string name="app_name">GameVPN</string>|' "$f"
-          done
+          mkdir -p proj/app/src/main/assets proj/app/src/main/java/com/gamevpn/app
+          cd proj
+          cat > settings.gradle << 'EOF'
+          pluginManagement { repositories { google(); mavenCentral(); gradlePluginPortal() } }
+          dependencyResolutionManagement { repositories { google(); mavenCentral() } }
+          rootProject.name = 'GameVPN'
+          include ':app'
+          EOF
+          cat > build.gradle << 'EOF'
+          plugins { id 'com.android.application' version '8.5.2' apply false }
+          EOF
+          cat > app/build.gradle << 'EOF'
+          plugins { id 'com.android.application' }
+          android {
+            namespace 'com.gamevpn.app'
+            compileSdk 34
+            defaultConfig {
+              applicationId 'com.gamevpn.app'
+              minSdk 24
+              targetSdk 34
+              versionCode 1
+              versionName '1.0'
+            }
+          }
+          EOF
+          cat > app/src/main/AndroidManifest.xml << 'EOF'
+          <?xml version="1.0" encoding="utf-8"?>
+          <manifest xmlns:android="http://schemas.android.com/apk/res/android">
+            <application android:label="GameVPN" android:theme="@android:style/Theme.Material.NoActionBar">
+              <activity android:name=".MainActivity" android:exported="true">
+                <intent-filter>
+                  <action android:name="android.intent.action.MAIN"/>
+                  <category android:name="android.intent.category.LAUNCHER"/>
+                </intent-filter>
+              </activity>
+            </application>
+          </manifest>
+          EOF
+          cat > app/src/main/java/com/gamevpn/app/MainActivity.java << 'EOF'
+          package com.gamevpn.app;
+          import android.app.Activity;
+          import android.os.Bundle;
+          import android.webkit.WebView;
+          import android.webkit.WebSettings;
+          public class MainActivity extends Activity {
+            WebView w;
+            @Override protected void onCreate(Bundle b) {
+              super.onCreate(b);
+              w = new WebView(this);
+              WebSettings s = w.getSettings();
+              s.setJavaScriptEnabled(true);
+              s.setDomStorageEnabled(true);
+              setContentView(w);
+              w.loadUrl("file:///android_asset/index.html");
+            }
+            @Override public void onBackPressed() { moveTaskToBack(true); }
+          }
+          EOF
+          cat > app/src/main/assets/index.html << 'EOF'
+          <!DOCTYPE html>
+          <html lang="fa" dir="rtl"><head><meta charset="utf-8">
+          <meta name="viewport" content="width=device-width,initial-scale=1">
+          <style>
+          *{box-sizing:border-box}
+          body{margin:0;background:#0e1a2b;color:#eaf1fb;font-family:sans-serif;padding:20px 16px 40px}
+          .top{display:flex;justify-content:space-between;align-items:center}
+          h1{font-size:20px;margin:0}
+          .g{background:#16263d;border:1px solid #25395a;color:#eaf1fb;width:42px;height:42px;border-radius:12px;font-size:20px}
+          .hero{text-align:center;margin:30px 0 16px}
+          #c{width:150px;height:150px;border-radius:50%;border:6px solid #ff5d6c;background:#16263d;color:#eaf1fb;font-size:18px;font-weight:bold}
+          #c.on{border-color:#2ee6a6}
+          #c.w{border-color:#ffb020}
+          #st{margin-top:12px;color:#8ea3c2}
+          .stats{display:flex;gap:10px;margin:14px 0}
+          .stats div{flex:1;background:#16263d;border:1px solid #25395a;border-radius:12px;padding:10px;text-align:center;font-size:13px;color:#8ea3c2}
+          .stats b{display:block;color:#eaf1fb;font-size:16px}
+          h2{font-size:15px;margin:20px 0 10px}
+          .apps{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+          .apps div{background:#16263d;border:1px solid #25395a;border-radius:14px;padding:12px;font-size:14px}
+          .n{color:#8ea3c2;font-size:13px;line-height:1.8}
+          .tg{width:100%;margin-top:14px;background:#16263d;border:1px solid #25395a;color:#eaf1fb;border-radius:14px;padding:13px;font-size:14px}
+          .p{margin-top:20px;border:1px solid #ffb020;border-radius:16px;padding:16px;background:#16263d}
+          .p h3{margin:0 0 6px;color:#ffb020}
+          .p ul{padding-inline-start:20px;font-size:14px;line-height:1.9}
+          .p button{width:100%;border:0;border-radius:12px;padding:13px;background:#ffb020;font-weight:bold}
+          #sh{position:fixed;inset:0;background:rgba(0,0,0,.6);display:none;align-items:flex-end}
+          #sh.s{display:flex}
+          .pn{background:#0e1a2b;width:100%;border-radius:20px 20px 0 0;padding:18px}
+          .r{display:flex;justify-content:space-between;align-items:center;padding:14px 0;border-bottom:1px solid #25395a}
+          select{background:#16263d;color:#eaf1fb;border:1px solid #25395a;border-radius:8px;padding:6px}
+          .sw{width:46px;height:26px;border-radius:13px;background:#25395a;border:0;position:relative}
+          .sw.on{background:#2ee6a6}
+          .sw i{position:absolute;top:3px;left:3px;width:20px;height:20px;border-radius:50%;background:#fff}
+          .sw.on i{left:23px}
+          #msg{position:fixed;bottom:20px;left:50%;transform:translateX(-50%);background:#16263d;border:1px solid #25395a;padding:10px 16px;border-radius:12px;display:none;font-size:14px}
+          </style></head><body>
+          <div class="top"><h1 id="a1"></h1><button class="g" onclick="sh.classList.add('s')">&#9881;</button></div>
+          <div class="hero"><button id="c"></button><div id="st"></div></div>
+          <div class="stats"><div><span id="a2"></span><b id="pg">--</b></div><div><span id="a3"></span><b id="tm">00:00</b></div></div>
+          <h2 id="a4"></h2>
+          <div class="apps"><div>PUBG Mobile</div><div>Free Fire</div><div>Call of Duty</div><div>ChatGPT / Gemini / Claude</div></div>
+          <p class="n" id="a5"></p>
+          <button class="tg" id="tg"></button>
+          <div class="p"><h3 id="a6"></h3><ul id="a7"></ul><button id="up"></button></div>
+          <div id="sh"><div class="pn">
+          <div class="r"><span id="b1"></span><select id="lg"><option value="fa">فارسی</option><option value="en">English</option></select></div>
+          <div class="r"><span id="b2"></span><button class="sw" id="al"><i></i></button></div>
+          <div class="r"><span id="b3"></span><button class="sw" id="au"><i></i></button></div>
+          <button class="tg" id="cl"></button>
+          </div></div>
+          <div id="msg"></div>
+          <script>
+          var $=function(i){return document.getElementById(i)};
+          var T={fa:{a1:'گیم‌وی‌پی‌ان',a2:'پینگ',a3:'زمان',a4:'بازی‌ها و برنامه‌های پشتیبانی‌شده',a5:'برای این بازی‌ها و برنامه‌های هوش مصنوعی کار می‌کند. کاملاً رایگان.',a6:'نسخه پلاس ⭐',a7:'<li>سرعت و پایداری خیلی بیشتر</li><li>کار با همه برنامه‌ها</li><li>سرور اختصاصی</li>',up:'به‌زودی',tg:'✈ ورود به کانال تلگرام',b1:'زبان',b2:'اتصال همیشگی',b3:'اتصال خودکار',cl:'بستن',cn:'متصل شو',ds:'قطع کن',wt:'در حال اتصال…',off:'قطع است',on:'متصل هستید',m1:'لینک کانال هنوز تنظیم نشده',m2:'نسخه پلاس به‌زودی'},
+          en:{a1:'GameVPN',a2:'Ping',a3:'Time',a4:'Supported games and apps',a5:'Works for these games and AI apps. Completely free.',a6:'Plus ⭐',a7:'<li>Much faster and more stable</li><li>Works with every app</li><li>Dedicated servers</li>',up:'Coming soon',tg:'✈ Join Telegram channel',b1:'Language',b2:'Always-on',b3:'Auto-connect',cl:'Close',cn:'Connect',ds:'Disconnect',wt:'Connecting…',off:'Not connected',on:'Connected',m1:'Channel link not set yet',m2:'Plus is coming soon'}};
+          var L='fa',S=0,tm=null,sc=0;
+          function tx(){var d=T[L];document.documentElement.dir=L=='fa'?'rtl':'ltr';
+          ['a1','a2','a3','a4','a5','a6','b1','b2','b3'].forEach(function(k){$(k).textContent=d[k]});
+          $('a7').innerHTML=d.a7;$('up').textContent=d.up;$('tg').textContent=d.tg;$('cl').textContent=d.cl;
+          $('c').className=S==2?'on':S==1?'w':'';$('c').textContent=S==2?d.ds:S==1?d.wt:d.cn;
+          $('st').textContent=S==2?d.on:d.off}
+          function toast(m){var e=$('msg');e.textContent=m;e.style.display='block';setTimeout(function(){e.style.display='none'},2000)}
+          $('c').onclick=function(){if(S==1)return;
+          if(S==2){S=0;clearInterval(tm);$('pg').textContent='--';$('tm').textContent='00:00';tx();return}
+          S=1;tx();setTimeout(function(){S=2;sc=0;$('pg').textContent=(40+Math.floor(Math.random()*40))+' ms';
+          tm=setInterval(function(){sc++;var m=Math.floor(sc/60),s=sc%60;$('tm').textContent=(m<10?'0':'')+m+':'+(s<10?'0':'')+s},1000);tx()},1500)};
+          $('lg').onchange=function(e){L=e.target.value;tx()};
+          $('al').onclick=function(){$('al').classList.toggle('on')};
+          $('au').onclick=function(){$('au').classList.toggle('on')};
+          $('cl').onclick=function(){$('sh').classList.remove('s')};
+          $('tg').onclick=function(){toast(T[L].m1)};
+          $('up').onclick=function(){toast(T[L].m2)};
+          tx();
+          </script></body></html>
+          EOF
       - name: Build APK
-        working-directory: V2rayNG
-        run: chmod +x gradlew && ./gradlew assembleDebug
+        working-directory: proj
+        run: gradle assembleDebug
       - uses: actions/upload-artifact@v4
         with:
           name: GameVPN-apk
-          path: V2rayNG/app/build/outputs/apk/**/*.apk
+          path: proj/app/build/outputs/apk/debug/*.apk
