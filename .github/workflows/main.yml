@@ -5,6 +5,7 @@ jobs:
   build:
     runs-on: ubuntu-24.04
     steps:
+      - uses: actions/checkout@v4
       - uses: actions/setup-java@v4
         with:
           distribution: temurin
@@ -14,7 +15,16 @@ jobs:
           gradle-version: 8.9
       - name: Create project
         run: |
-          mkdir -p proj/app/src/main/assets proj/app/src/main/java/com/gamevpn/app
+          sudo apt-get update -qq && sudo apt-get install -y -qq imagemagick
+          mkdir -p proj/app/src/main/assets proj/app/src/main/res/mipmap-xxxhdpi proj/app/src/main/java/com/gamevpn/app
+          ICON=$(ls *.png 2>/dev/null | head -1)
+          if [ -n "$ICON" ]; then
+            convert "$ICON" -resize 192x192 proj/app/src/main/res/mipmap-xxxhdpi/ic_launcher.png
+            convert "$ICON" -resize 160x160 proj/app/src/main/assets/logo.png
+          else
+            convert -size 192x192 xc:'#0e1a2b' proj/app/src/main/res/mipmap-xxxhdpi/ic_launcher.png
+            convert -size 160x160 xc:'#0e1a2b' proj/app/src/main/assets/logo.png
+          fi
           cd proj
           cat > settings.gradle << 'EOF'
           pluginManagement { repositories { google(); mavenCentral(); gradlePluginPortal() } }
@@ -42,7 +52,7 @@ jobs:
           cat > app/src/main/AndroidManifest.xml << 'EOF'
           <?xml version="1.0" encoding="utf-8"?>
           <manifest xmlns:android="http://schemas.android.com/apk/res/android">
-            <application android:label="GameVPN" android:theme="@android:style/Theme.Material.NoActionBar">
+            <application android:label="GameVPN" android:icon="@mipmap/ic_launcher" android:theme="@android:style/Theme.Material.NoActionBar">
               <activity android:name=".MainActivity" android:exported="true">
                 <intent-filter>
                   <action android:name="android.intent.action.MAIN"/>
@@ -55,8 +65,11 @@ jobs:
           cat > app/src/main/java/com/gamevpn/app/MainActivity.java << 'EOF'
           package com.gamevpn.app;
           import android.app.Activity;
+          import android.content.Intent;
+          import android.net.Uri;
           import android.os.Bundle;
           import android.webkit.WebView;
+          import android.webkit.WebViewClient;
           import android.webkit.WebSettings;
           public class MainActivity extends Activity {
             WebView w;
@@ -66,6 +79,15 @@ jobs:
               WebSettings s = w.getSettings();
               s.setJavaScriptEnabled(true);
               s.setDomStorageEnabled(true);
+              w.setWebViewClient(new WebViewClient() {
+                @Override public boolean shouldOverrideUrlLoading(WebView v, String u) {
+                  if (u.startsWith("http") || u.startsWith("tg:")) {
+                    try { startActivity(new Intent(Intent.ACTION_VIEW, Uri.parse(u))); } catch (Exception e) {}
+                    return true;
+                  }
+                  return false;
+                }
+              });
               setContentView(w);
               w.loadUrl("file:///android_asset/index.html");
             }
@@ -80,13 +102,15 @@ jobs:
           *{box-sizing:border-box}
           body{margin:0;background:#0e1a2b;color:#eaf1fb;font-family:sans-serif;padding:20px 16px 40px}
           .top{display:flex;justify-content:space-between;align-items:center}
+          .lg{display:flex;align-items:center;gap:10px}
+          .lg img{width:44px;height:44px;border-radius:12px}
           h1{font-size:20px;margin:0}
           .g{background:#16263d;border:1px solid #25395a;color:#eaf1fb;width:42px;height:42px;border-radius:12px;font-size:20px}
-          .hero{text-align:center;margin:30px 0 16px}
+          .hero{text-align:center;margin:26px 0 14px}
           #c{width:150px;height:150px;border-radius:50%;border:6px solid #ff5d6c;background:#16263d;color:#eaf1fb;font-size:18px;font-weight:bold}
           #c.on{border-color:#2ee6a6}
           #c.w{border-color:#ffb020}
-          #st{margin-top:12px;color:#8ea3c2}
+          #st{margin-top:12px;color:#8ea3c2;font-size:14px}
           .stats{display:flex;gap:10px;margin:14px 0}
           .stats div{flex:1;background:#16263d;border:1px solid #25395a;border-radius:12px;padding:10px;text-align:center;font-size:13px;color:#8ea3c2}
           .stats b{display:block;color:#eaf1fb;font-size:16px}
@@ -94,58 +118,95 @@ jobs:
           .apps{display:grid;grid-template-columns:1fr 1fr;gap:10px}
           .apps div{background:#16263d;border:1px solid #25395a;border-radius:14px;padding:12px;font-size:14px}
           .n{color:#8ea3c2;font-size:13px;line-height:1.8}
-          .tg{width:100%;margin-top:14px;background:#16263d;border:1px solid #25395a;color:#eaf1fb;border-radius:14px;padding:13px;font-size:14px}
+          .tg{width:100%;margin-top:12px;background:#16263d;border:1px solid #25395a;color:#eaf1fb;border-radius:14px;padding:13px;font-size:14px}
           .p{margin-top:20px;border:1px solid #ffb020;border-radius:16px;padding:16px;background:#16263d}
           .p h3{margin:0 0 6px;color:#ffb020}
           .p ul{padding-inline-start:20px;font-size:14px;line-height:1.9}
-          .p button{width:100%;border:0;border-radius:12px;padding:13px;background:#ffb020;font-weight:bold}
-          #sh{position:fixed;inset:0;background:rgba(0,0,0,.6);display:none;align-items:flex-end}
-          #sh.s{display:flex}
-          .pn{background:#0e1a2b;width:100%;border-radius:20px 20px 0 0;padding:18px}
-          .r{display:flex;justify-content:space-between;align-items:center;padding:14px 0;border-bottom:1px solid #25395a}
+          .gold{width:100%;border:0;border-radius:12px;padding:13px;background:#ffb020;font-weight:bold;font-size:15px}
+          .ov{position:fixed;inset:0;background:rgba(0,0,0,.6);display:none;align-items:flex-end}
+          .ov.s{display:flex}
+          .pn{background:#0e1a2b;width:100%;border-radius:20px 20px 0 0;padding:18px;max-height:90%;overflow:auto}
+          .r{display:flex;justify-content:space-between;align-items:center;padding:14px 0;border-bottom:1px solid #25395a;gap:10px}
+          .r span{flex:1;word-break:break-all;font-size:14px}
+          .x{background:none;border:0;color:#ff5d6c;font-size:18px}
           select{background:#16263d;color:#eaf1fb;border:1px solid #25395a;border-radius:8px;padding:6px}
+          textarea{width:100%;height:110px;background:#16263d;color:#eaf1fb;border:1px solid #25395a;border-radius:12px;padding:10px;font-size:13px;direction:ltr}
           .sw{width:46px;height:26px;border-radius:13px;background:#25395a;border:0;position:relative}
           .sw.on{background:#2ee6a6}
           .sw i{position:absolute;top:3px;left:3px;width:20px;height:20px;border-radius:50%;background:#fff}
           .sw.on i{left:23px}
-          #msg{position:fixed;bottom:20px;left:50%;transform:translateX(-50%);background:#16263d;border:1px solid #25395a;padding:10px 16px;border-radius:12px;display:none;font-size:14px}
+          .card{background:#16263d;border:1px solid #25395a;border-radius:14px;padding:14px;text-align:center;margin:12px 0}
+          .card b{display:block;font-size:20px;letter-spacing:2px;direction:ltr;margin:8px 0}
+          .price{font-size:22px;color:#ffb020;font-weight:bold;text-align:center}
+          #msg{position:fixed;bottom:20px;left:50%;transform:translateX(-50%);background:#16263d;border:1px solid #25395a;padding:10px 16px;border-radius:12px;display:none;font-size:14px;z-index:9}
           </style></head><body>
-          <div class="top"><h1 id="a1"></h1><button class="g" onclick="sh.classList.add('s')">&#9881;</button></div>
+          <div class="top"><div class="lg"><img src="logo.png"><h1 id="a1"></h1></div><button class="g" onclick="op('sh')">&#9881;</button></div>
           <div class="hero"><button id="c"></button><div id="st"></div></div>
+          <button class="tg" id="addc"></button>
           <div class="stats"><div><span id="a2"></span><b id="pg">--</b></div><div><span id="a3"></span><b id="tm">00:00</b></div></div>
           <h2 id="a4"></h2>
           <div class="apps"><div>PUBG Mobile</div><div>Free Fire</div><div>Call of Duty</div><div>ChatGPT / Gemini / Claude</div></div>
           <p class="n" id="a5"></p>
           <button class="tg" id="tg"></button>
-          <div class="p"><h3 id="a6"></h3><ul id="a7"></ul><button id="up"></button></div>
-          <div id="sh"><div class="pn">
+          <div class="p"><h3 id="a6"></h3><ul id="a7"></ul><button class="gold" id="up"></button></div>
+
+          <div class="ov" id="sh"><div class="pn">
           <div class="r"><span id="b1"></span><select id="lg"><option value="fa">فارسی</option><option value="en">English</option></select></div>
           <div class="r"><span id="b2"></span><button class="sw" id="al"><i></i></button></div>
           <div class="r"><span id="b3"></span><button class="sw" id="au"><i></i></button></div>
-          <button class="tg" id="cl"></button>
+          <button class="tg" onclick="cl('sh')" id="c1"></button>
+          </div></div>
+
+          <div class="ov" id="cf"><div class="pn">
+          <h2 id="d1" style="margin-top:0"></h2>
+          <textarea id="ta" placeholder="vless:// vmess:// trojan:// ss:// https://..."></textarea>
+          <button class="gold" id="sv" style="margin-top:10px"></button>
+          <div id="lst"></div>
+          <button class="tg" onclick="cl('cf')" id="c2"></button>
+          </div></div>
+
+          <div class="ov" id="pay"><div class="pn">
+          <h2 id="e1" style="margin-top:0"></h2>
+          <div class="price" id="e2"></div>
+          <div class="card"><span id="e3"></span><b id="cn">6277 6013 6830 7607</b><button class="tg" id="cp"></button></div>
+          <p class="n" id="e4"></p>
+          <button class="gold" id="rc"></button>
+          <button class="tg" onclick="cl('pay')" id="c3"></button>
           </div></div>
           <div id="msg"></div>
           <script>
           var $=function(i){return document.getElementById(i)};
-          var T={fa:{a1:'گیم‌وی‌پی‌ان',a2:'پینگ',a3:'زمان',a4:'بازی‌ها و برنامه‌های پشتیبانی‌شده',a5:'برای این بازی‌ها و برنامه‌های هوش مصنوعی کار می‌کند. کاملاً رایگان.',a6:'نسخه پلاس ⭐',a7:'<li>سرعت و پایداری خیلی بیشتر</li><li>کار با همه برنامه‌ها</li><li>سرور اختصاصی</li>',up:'به‌زودی',tg:'✈ ورود به کانال تلگرام',b1:'زبان',b2:'اتصال همیشگی',b3:'اتصال خودکار',cl:'بستن',cn:'متصل شو',ds:'قطع کن',wt:'در حال اتصال…',off:'قطع است',on:'متصل هستید',m1:'لینک کانال هنوز تنظیم نشده',m2:'نسخه پلاس به‌زودی'},
-          en:{a1:'GameVPN',a2:'Ping',a3:'Time',a4:'Supported games and apps',a5:'Works for these games and AI apps. Completely free.',a6:'Plus ⭐',a7:'<li>Much faster and more stable</li><li>Works with every app</li><li>Dedicated servers</li>',up:'Coming soon',tg:'✈ Join Telegram channel',b1:'Language',b2:'Always-on',b3:'Auto-connect',cl:'Close',cn:'Connect',ds:'Disconnect',wt:'Connecting…',off:'Not connected',on:'Connected',m1:'Channel link not set yet',m2:'Plus is coming soon'}};
-          var L='fa',S=0,tm=null,sc=0;
+          var T={fa:{a1:'گیم‌وی‌پی‌ان',a2:'پینگ',a3:'زمان',a4:'بازی‌ها و برنامه‌های پشتیبانی‌شده',a5:'برای این بازی‌ها و برنامه‌های هوش مصنوعی کار می‌کند. کاملاً رایگان.',a6:'نسخه پلاس ⭐',a7:'<li>سرعت و پایداری خیلی بیشتر</li><li>کار با همه برنامه‌ها</li><li>سرور اختصاصی</li>',up:'خرید اشتراک پلاس',tg:'✈ ورود به کانال تلگرام',addc:'➕ افزودن کانفیگ',b1:'زبان',b2:'اتصال همیشگی',b3:'اتصال خودکار',cl:'بستن',cn:'متصل شو',ds:'قطع کن',wt:'در حال اتصال…',off:'قطع است',on:'متصل هستید',d1:'کانفیگ‌های من',sv:'ذخیره',e1:'خرید اشتراک پلاس',e2:'۱۱۰,۰۰۰ تومان',e3:'شماره کارت',e4:'مبلغ را کارت‌به‌کارت واریز کنید و رسید را در تلگرام برای @Gime_VPN بفرستید.',cp:'کپی شماره کارت',rc:'ارسال رسید در تلگرام',m1:'اول یک کانفیگ اضافه کنید',m2:'کانفیگ معتبر پیدا نشد',m3:'ذخیره شد',m4:'کپی شد',m5:'کانفیگ'},
+          en:{a1:'GameVPN',a2:'Ping',a3:'Time',a4:'Supported games and apps',a5:'Works for these games and AI apps. Completely free.',a6:'Plus ⭐',a7:'<li>Much faster and more stable</li><li>Works with every app</li><li>Dedicated servers</li>',up:'Buy Plus',tg:'✈ Join Telegram channel',addc:'➕ Add config',b1:'Language',b2:'Always-on',b3:'Auto-connect',cl:'Close',cn:'Connect',ds:'Disconnect',wt:'Connecting…',off:'Not connected',on:'Connected',d1:'My configs',sv:'Save',e1:'Buy Plus',e2:'110,000 Toman',e3:'Card number',e4:'Pay by card-to-card and send the receipt to @Gime_VPN on Telegram.',cp:'Copy card number',rc:'Send receipt on Telegram',m1:'Add a config first',m2:'No valid config found',m3:'Saved',m4:'Copied',m5:'Config'}};
+          var L='fa',S=0,tm=null,sc=0,SEL=0,CF=[];
+          try{CF=JSON.parse(localStorage.getItem('cf')||'[]')}catch(e){CF=[]}
+          function sv(){try{localStorage.setItem('cf',JSON.stringify(CF))}catch(e){}}
+          function nm(u){var i=u.indexOf('#');if(i>0){try{return decodeURIComponent(u.slice(i+1))}catch(e){return u.slice(i+1)}}return u.split('://')[0].toUpperCase()}
+          function op(i){$(i).classList.add('s')}
+          function cl(i){$(i).classList.remove('s')}
+          function toast(m){var e=$('msg');e.textContent=m;e.style.display='block';setTimeout(function(){e.style.display='none'},2200)}
+          function rl(){var l=$('lst');l.innerHTML='';CF.forEach(function(u,i){var d=document.createElement('div');d.className='r';var s=document.createElement('span');s.textContent=(i==SEL?'✔ ':'')+nm(u);s.onclick=function(){SEL=i;rl();tx()};var b=document.createElement('button');b.className='x';b.textContent='🗑';b.onclick=function(){CF.splice(i,1);if(SEL>=CF.length)SEL=0;sv();rl();tx()};d.appendChild(s);d.appendChild(b);l.appendChild(d)})}
           function tx(){var d=T[L];document.documentElement.dir=L=='fa'?'rtl':'ltr';
-          ['a1','a2','a3','a4','a5','a6','b1','b2','b3'].forEach(function(k){$(k).textContent=d[k]});
-          $('a7').innerHTML=d.a7;$('up').textContent=d.up;$('tg').textContent=d.tg;$('cl').textContent=d.cl;
+          ['a1','a2','a3','a4','a5','a6','b1','b2','b3','d1','e1','e2','e3','e4'].forEach(function(k){$(k).textContent=d[k]});
+          $('a7').innerHTML=d.a7;$('up').textContent=d.up;$('tg').textContent=d.tg;$('addc').textContent=d.addc;$('sv').textContent=d.sv;$('cp').textContent=d.cp;$('rc').textContent=d.rc;
+          ['c1','c2','c3'].forEach(function(k){$(k).textContent=d.cl});
           $('c').className=S==2?'on':S==1?'w':'';$('c').textContent=S==2?d.ds:S==1?d.wt:d.cn;
-          $('st').textContent=S==2?d.on:d.off}
-          function toast(m){var e=$('msg');e.textContent=m;e.style.display='block';setTimeout(function(){e.style.display='none'},2000)}
+          $('st').textContent=S==2?d.on+(CF.length?' · '+nm(CF[SEL]):''):(CF.length?nm(CF[SEL]):d.off)}
           $('c').onclick=function(){if(S==1)return;
           if(S==2){S=0;clearInterval(tm);$('pg').textContent='--';$('tm').textContent='00:00';tx();return}
+          if(!CF.length){toast(T[L].m1);rl();op('cf');return}
           S=1;tx();setTimeout(function(){S=2;sc=0;$('pg').textContent=(40+Math.floor(Math.random()*40))+' ms';
           tm=setInterval(function(){sc++;var m=Math.floor(sc/60),s=sc%60;$('tm').textContent=(m<10?'0':'')+m+':'+(s<10?'0':'')+s},1000);tx()},1500)};
+          $('addc').onclick=function(){rl();op('cf')};
+          $('sv').onclick=function(){var n=0;$('ta').value.split(/\s+/).forEach(function(u){if(/^(vless|vmess|trojan|ss|hysteria2|hy2|tuic|https?):\/\//i.test(u)){CF.push(u);n++}});
+          if(n){sv();$('ta').value='';rl();tx();toast(T[L].m3)}else toast(T[L].m2)};
           $('lg').onchange=function(e){L=e.target.value;tx()};
           $('al').onclick=function(){$('al').classList.toggle('on')};
           $('au').onclick=function(){$('au').classList.toggle('on')};
-          $('cl').onclick=function(){$('sh').classList.remove('s')};
-          $('tg').onclick=function(){toast(T[L].m1)};
-          $('up').onclick=function(){toast(T[L].m2)};
+          $('tg').onclick=function(){window.location.href='https://t.me/Gime_VPN'};
+          $('rc').onclick=function(){window.location.href='https://t.me/Gime_VPN'};
+          $('up').onclick=function(){op('pay')};
+          $('cp').onclick=function(){var t=document.createElement('textarea');t.value='6277601368307607';document.body.appendChild(t);t.select();try{document.execCommand('copy')}catch(e){}document.body.removeChild(t);toast(T[L].m4)};
           tx();
           </script></body></html>
           EOF
